@@ -95,7 +95,9 @@ jobs:
           command: choco install python
       - run:
           name: Install deps
-          command: choco install nasm
+          command: |
+            choco feature enable -n allowGlobalConfirmation
+            choco install nasm
       - run:
           name: Environment Information
           command: npx envinfo
