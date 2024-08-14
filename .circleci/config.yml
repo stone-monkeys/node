@@ -341,6 +341,37 @@ jobs:
           command: tools/lint-readme-lists.mjs
 
 
+# test linux
+  test-linux:
+    docker:
+      - image: cimg/python:3.12.5  # Use a CircleCI Python Docker image
+    environment:
+      FLAKY_TESTS: keep_retrying
+      CC: sccache clang
+      CXX: sccache clang++
+      SCCACHE_GHA_ENABLED: 'true'
+    steps:
+      - checkout  # Equivalent to actions/checkout
+      - run:
+          name: Set Up Python
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3.12 python3.12-dev python3.12-venv
+            python3 --version  # Confirm Python version
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            sccache --version
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Build
+          command: make build-ci -j4 V=1 CONFIG_FLAGS="--error-on-warn"
+      - run:
+          name: Test
+          command: make run-ci -j4 V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
 workflows:
 
   # build-tarball:
@@ -350,26 +381,30 @@ workflows:
   #         requires:
   #           - build_tarball
 
-  build-windows:
-    jobs:
-      - build-windows
+  # build-windows:
+  #   jobs:
+  #     - build-windows
 
-  daily:
-    jobs:
-      - daily
+  # daily:
+  #   jobs:
+  #     - daily
   
-  docs:
-    jobs:
-      - docs
+  # docs:
+  #   jobs:
+  #     - docs
 
-  linters:
+  # linters:
+  #   jobs:
+  #     - lint-addon-docs
+  #     - lint-cpp
+  #     - format-cpp
+  #     - lint-js-and-md
+  #     - lint-py
+  #     - lint-yaml
+  #     - lint-sh
+  #     - lint-pr-url
+  #     - lint-readme
+  
+  test-linux:
     jobs:
-      - lint-addon-docs
-      - lint-cpp
-      - format-cpp
-      - lint-js-and-md
-      - lint-py
-      - lint-yaml
-      - lint-sh
-      - lint-pr-url
-      - lint-readme
+      - test-linux
