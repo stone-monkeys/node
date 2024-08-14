@@ -1,0 +1,384 @@
+version: 2.1
+
+jobs:
+
+  build_tarball:
+    docker:
+      - image: cimg/python:3.12.5
+    environment:
+      FLAKY_TESTS: keep_retrying
+      CC: sccache clang
+      CXX: sccache clang++
+      SCCACHE_GHA_ENABLED: 'true'
+    steps:
+      - checkout
+      - run:
+          name: Set up Python
+          command: pyenv global 3.12
+      - run:
+          name: Set up sccache
+          command: |
+            curl -L -o /usr/local/bin/sccache https://github.com/mozilla/sccache/releases/download/v0.8.0/sccache-v0.8.0-x86_64-unknown-linux-musl
+            chmod +x /usr/local/bin/sccache
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Make tarball
+          command: |
+            export DISTTYPE=nightly
+            export DATESTRING=$(date "+%Y-%m-%d")
+            export COMMIT=$(git rev-parse --short=10 "$CIRCLE_SHA1")
+            ./configure && make tar -j8 SKIP_XZ=1
+            mkdir -p ~/project/tarballs
+            mv *.tar.gz ~/project/tarballs/
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - tarballs
+
+  test_tarball_linux:
+    docker:
+      - image: cimg/python:3.12.5
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: Set up Python
+          command: pyenv global 3.12
+      - run:
+          name: Set up sccache
+          command: |
+            curl -L -o /usr/local/bin/sccache https://github.com/mozilla/sccache/releases/download/v0.8.0/sccache-v0.8.0-x86_64-unknown-linux-musl
+            chmod +x /usr/local/bin/sccache
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Extract tarball
+          command: |
+            tar xzf ~/project/tarballs/*.tar.gz -C $HOME
+            TAR_DIR=$HOME/$(basename ~/project/tarballs/*.tar.gz .tar.gz)
+            echo "export TAR_DIR=$TAR_DIR" >> $BASH_ENV
+      - run:
+          name: Copy directories needed for testing
+          command: |
+            cp -r tools/eslint $TAR_DIR/tools
+            cp -r tools/eslint-rules $TAR_DIR/tools
+      - run:
+          name: Build
+          command: |
+            cd $TAR_DIR
+            make build-ci -j4 V=1
+      - run:
+          name: Test
+          command: |
+            cd $TAR_DIR
+            make run-ci -j4 V=1 TEST_CI_ARGS="-p dots --node-args='--test-reporter=spec' --measure-flakiness 9"
+
+  build-windows:
+    machine:
+      image: 'windows-server-2022-gui:current'
+    resource_class: windows.xlarge # can be medium, large, xlarge, 2xlarge
+    environment:
+      PYTHON_VERSION: '3.12'
+      FLAKY_TESTS: keep_retrying
+    steps:
+      - checkout
+      - run:
+          name: Set up Python $PYTHON_VERSION
+          command: choco install python --version=$PYTHON_VERSION
+      - run:
+          name: Install deps
+          command: choco install nasm
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Build
+          command: ./vcbuild.bat
+
+  daily:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    resource_class: 2xlarge
+    environment:
+      NODE_VERSION: 'lts/*'
+    steps:
+      - checkout
+      - run:
+          name: Use Node.js $NODE_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Build lto
+          command: |
+            sudo apt-get update && sudo apt-get install ninja-build -y
+            ./configure --enable-lto --ninja
+            ninja -C out/Release
+  
+  docs:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    resource_class: 2xlarge
+    environment:
+      NODE_VERSION: 'lts/*'
+    steps:
+      - checkout
+      - run:
+          name: Use Node.js $NODE_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Build Documentation
+          command: NODE=$(command -v node) make doc-only
+      - store_artifacts:
+          path: out/doc
+          destination: docs
+      - run:
+          name: Test Documentation
+          command: |
+            NODE=$(command -v node) make test-doc-ci TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
+
+# Linters
+  lint-addon-docs:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    environment:
+      NODE_VERSION: 'lts/*'
+    steps:
+      - checkout
+      - run:
+          name: Use Node.js $NODE_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Lint addon docs
+          command: NODE=$(command -v node) make lint-addon-docs
+
+  lint-cpp:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    environment:
+      PYTHON_VERSION: '3.12'
+    steps:
+      - checkout
+      - run:
+          name: Set up Python $PYTHON_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            pip3 install --upgrade pip
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Lint C/C++ files
+          command: make lint-cpp
+
+  format-cpp:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    environment:
+      NODE_VERSION: 'lts/*'
+      PYTHON_VERSION: '3.12'
+    steps:
+      - checkout:
+          fetch-depth: 0
+      - run:
+          name: Use Node.js $NODE_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Set up Python $PYTHON_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            pip3 install --upgrade pip
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Format C/C++ files
+          command: |
+            make format-cpp-build
+            CLANG_FORMAT_START="$(git merge-base HEAD origin/main)" make format-cpp || true
+            git --no-pager diff --exit-code && EXIT_CODE="$?" || EXIT_CODE="$?"
+            if [ "$EXIT_CODE" != "0" ]; then
+              echo
+              echo 'ERROR: Please run:'
+              echo
+              echo "  CLANG_FORMAT_START="$(git merge-base HEAD origin/main)" make format-cpp"
+              echo
+              echo 'to format the commits in your branch.'
+              exit "$EXIT_CODE"
+            fi
+
+  lint-js-and-md:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    environment:
+      NODE_VERSION: 'lts/*'
+    steps:
+      - checkout
+      - run:
+          name: Use Node.js $NODE_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Lint JavaScript files
+          command: NODE=$(command -v node) make lint-js
+      - run:
+          name: Get release version numbers
+          command: ./tools/lint-md/list-released-versions-from-changelogs.mjs >> $BASH_ENV
+      - run:
+          name: Lint markdown files
+          command: |
+            NODE=$(command -v node) make lint-md
+          environment:
+            NODE_RELEASED_VERSIONS: $NODE_RELEASED_VERSIONS
+
+  lint-py:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    environment:
+      PYTHON_VERSION: '3.12'
+    steps:
+      - checkout
+      - run:
+          name: Set up Python $PYTHON_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            pip3 install --upgrade pip
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Lint Python
+          command: |
+            make lint-py-build
+            make lint-py
+
+  lint-yaml:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    environment:
+      PYTHON_VERSION: '3.12'
+    steps:
+      - checkout
+      - run:
+          name: Set up Python $PYTHON_VERSION
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            pip3 install --upgrade pip
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: Lint YAML
+          command: |
+            make lint-yaml-build || true
+            make lint-yaml
+
+  lint-sh:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    steps:
+      - checkout
+      - run: shellcheck -V
+      - run:
+          name: Lint Shell scripts
+          command: tools/lint-sh.mjs .
+
+  lint-codeowners:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    steps:
+      - checkout
+      - run:
+          name: Validate CODEOWNERS
+          command: mszostok/codeowners-validator --checks files,duppatterns
+
+  lint-pr-url:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    steps:
+      - checkout:
+          fetch-depth: 2
+      - run:
+          name: Lint PR URLs
+          command: git diff HEAD^ HEAD -G"pr-url:" -- "*.md" | ./tools/lint-pr-url.mjs $CIRCLE_PULL_REQUEST
+
+  lint-readme:
+    machine:
+      image: ubuntu-2404:2024.05.1
+    steps:
+      - checkout
+      - run:
+          name: Lint README
+          command: tools/lint-readme-lists.mjs
+
+
+workflows:
+
+  build-tarball:
+    jobs:
+      - build_tarball
+      - test_tarball_linux:
+          requires:
+            - build_tarball
+
+  build-windows:
+    jobs:
+      - build-windows
+
+  daily:
+    jobs:
+      - daily
+  
+  docs:
+    jobs:
+      - docs
+
+  linters:
+    jobs:
+      - lint-addon-docs
+      - lint-cpp
+      - format-cpp
+      - lint-js-and-md
+      - lint-py
+      - lint-yaml
+      - lint-sh
+      - lint-codeowners
+      - lint-pr-url
+      - lint-readme
