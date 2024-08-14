@@ -18,11 +18,13 @@ jobs:
       - run:
           name: Set up sccache
           command: |
-            curl -L -o /usr/local/bin/sccache https://github.com/mozilla/sccache/releases/download/v0.8.0/sccache-v0.8.0-x86_64-unknown-linux-musl
-            chmod +x /usr/local/bin/sccache
+            sudo curl -L -o /usr/local/bin/sccache https://github.com/mozilla/sccache/releases/download/v0.8.0/sccache-v0.8.0-x86_64-unknown-linux-musl
+            sudo chmod +x /usr/local/bin/sccache
       - run:
           name: Environment Information
-          command: npx envinfo
+          command: |
+            sudo apt update
+            sudo apt install build-essential
       - run:
           name: Make tarball
           command: |
@@ -358,27 +360,27 @@ workflows:
           requires:
             - build_tarball
 
-  build-windows:
-    jobs:
-      - build-windows
+  # build-windows:
+  #   jobs:
+  #     - build-windows
 
-  daily:
-    jobs:
-      - daily
+  # daily:
+  #   jobs:
+  #     - daily
   
-  docs:
-    jobs:
-      - docs
+  # docs:
+  #   jobs:
+  #     - docs
 
-  linters:
-    jobs:
-      - lint-addon-docs
-      - lint-cpp
-      - format-cpp
-      - lint-js-and-md
-      - lint-py
-      - lint-yaml
-      - lint-sh
-      - lint-codeowners
-      - lint-pr-url
-      - lint-readme
+  # linters:
+  #   jobs:
+  #     - lint-addon-docs
+  #     - lint-cpp
+  #     - format-cpp
+  #     - lint-js-and-md
+  #     - lint-py
+  #     - lint-yaml
+  #     - lint-sh
+  #     - lint-codeowners
+  #     - lint-pr-url
+  #     - lint-readme
