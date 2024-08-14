@@ -25,6 +25,9 @@ jobs:
           command: |
             sudo apt update
             sudo apt install build-essential
+            sudo apt update
+            sudo apt install g++-12
+            sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 50
       - run:
           name: Make tarball
           command: |
@@ -84,13 +87,12 @@ jobs:
       image: 'windows-server-2022-gui:current'
     resource_class: windows.xlarge # can be medium, large, xlarge, 2xlarge
     environment:
-      PYTHON_VERSION: '3.12'
       FLAKY_TESTS: keep_retrying
     steps:
       - checkout
       - run:
           name: Set up Python $PYTHON_VERSION
-          command: choco install python --version=$PYTHON_VERSION
+          command: choco install python
       - run:
           name: Install deps
           command: choco install nasm
@@ -353,16 +355,16 @@ jobs:
 
 workflows:
 
-  build-tarball:
-    jobs:
-      - build_tarball
-      - test_tarball_linux:
-          requires:
-            - build_tarball
-
-  # build-windows:
+  # build-tarball:
   #   jobs:
-  #     - build-windows
+  #     - build_tarball
+  #     - test_tarball_linux:
+  #         requires:
+  #           - build_tarball
+
+  build-windows:
+    jobs:
+      - build-windows
 
   # daily:
   #   jobs:
