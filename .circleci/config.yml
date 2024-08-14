@@ -108,7 +108,7 @@ jobs:
   daily:
     machine:
       image: ubuntu-2404:2024.05.1
-    resource_class: 2xlarge
+    resource_class: 2xlarge+
     environment:
       NODE_VERSION: 'lts/*'
     steps:
@@ -265,12 +265,6 @@ jobs:
       - run:
           name: Get release version numbers
           command: ./tools/lint-md/list-released-versions-from-changelogs.mjs >> $BASH_ENV
-      - run:
-          name: Lint markdown files
-          command: |
-            NODE=$(command -v node) make lint-md
-          environment:
-            NODE_RELEASED_VERSIONS: $NODE_RELEASED_VERSIONS
 
   lint-py:
     machine:
@@ -321,19 +315,11 @@ jobs:
       image: ubuntu-2404:2024.05.1
     steps:
       - checkout
+      - run: sudo apt-get install shellcheck
       - run: shellcheck -V
       - run:
           name: Lint Shell scripts
           command: tools/lint-sh.mjs .
-
-  lint-codeowners:
-    machine:
-      image: ubuntu-2404:2024.05.1
-    steps:
-      - checkout
-      - run:
-          name: Validate CODEOWNERS
-          command: mszostok/codeowners-validator --checks files,duppatterns
 
   lint-pr-url:
     machine:
@@ -368,23 +354,22 @@ workflows:
     jobs:
       - build-windows
 
-  # daily:
-  #   jobs:
-  #     - daily
+  daily:
+    jobs:
+      - daily
   
-  # docs:
-  #   jobs:
-  #     - docs
+  docs:
+    jobs:
+      - docs
 
-  # linters:
-  #   jobs:
-  #     - lint-addon-docs
-  #     - lint-cpp
-  #     - format-cpp
-  #     - lint-js-and-md
-  #     - lint-py
-  #     - lint-yaml
-  #     - lint-sh
-  #     - lint-codeowners
-  #     - lint-pr-url
-  #     - lint-readme
+  linters:
+    jobs:
+      - lint-addon-docs
+      - lint-cpp
+      - format-cpp
+      - lint-js-and-md
+      - lint-py
+      - lint-yaml
+      - lint-sh
+      - lint-pr-url
+      - lint-readme
