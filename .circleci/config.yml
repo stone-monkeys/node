@@ -364,6 +364,14 @@ jobs:
             sudo apt install cargo
             sudo apt update
             sudo apt install clang
+            sudo apt-get install pkg-config libssl-dev
+      - run: 
+          name: clang version
+          command: |
+            clang --version
+            export CC=clang
+            export CXX=clang++
+
       - run:
           name: Install sccache
           command: |
