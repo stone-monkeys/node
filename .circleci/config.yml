@@ -464,4 +464,4 @@ workflows:
   
   test-macos:
     jobs:
-      - test-macos
+      - test-macOS
