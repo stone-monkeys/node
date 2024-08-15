@@ -376,7 +376,7 @@ jobs:
       - run:
           name: Install sccache
           command: |
-            cargo install sccache
+            sudo apt install sccache
             sccache --version
       - run:
           name: Environment Information
