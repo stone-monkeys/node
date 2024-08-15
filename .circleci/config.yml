@@ -343,9 +343,8 @@ jobs:
 
 # test linux
   test-linux:
-    machine:
-      image: ubuntu-2404:2024.05.1  # Use a CircleCI Python Docker image
-      resource_class: xlarge
+    docker:
+      - image: cimg/python:3.12.5
     environment:
       FLAKY_TESTS: keep_retrying
       CC: sccache clang
