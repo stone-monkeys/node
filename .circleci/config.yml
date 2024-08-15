@@ -386,6 +386,45 @@ jobs:
       - run:
           name: Test
           command: make run-ci -j4 V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
+
+  test-macOS:
+    macos:
+      xcode: "14.2.0"  # macOS version that supports Xcode 14, corresponding to macOS-14
+    environment:
+      PYTHON_VERSION: '3.12'
+      FLAKY_TESTS: keep_retrying
+      CC: sccache gcc
+      CXX: sccache g++
+      SCCACHE_GHA_ENABLED: 'true'
+    steps:
+      - checkout
+      - run:
+          name: Set up Python $PYTHON_VERSION
+          command: |
+            brew install pyenv
+            pyenv install $PYTHON_VERSION
+            pyenv global $PYTHON_VERSION
+            python -m ensurepip
+            python -m pip install --upgrade pip setuptools wheel
+      - run:
+          name: Set up sccache
+          command: |
+            brew install sccache
+            export SCCACHE_CACHE_SIZE="10G"
+            export SCCACHE_DIR="/tmp/sccache"
+            sccache --start-server
+      - run:
+          name: Environment Information
+          command: npx envinfo
+      - run:
+          name: tools/doc/node_modules workaround
+          command: make tools/doc/node_modules
+      - run:
+          name: Build
+          command: make build-ci -j$(sysctl -n hw.ncpu) V=1 CONFIG_FLAGS="--error-on-warn"
+      - run:
+          name: Test
+          command: make run-ci -j$(sysctl -n hw.ncpu) V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
 workflows:
 
   # build-tarball:
@@ -422,3 +461,7 @@ workflows:
   test-linux:
     jobs:
       - test-linux
+  
+  test-macos:
+    jobs:
+      - test-macos
