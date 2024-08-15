@@ -84,8 +84,8 @@ jobs:
 
   build-windows:
     machine:
-      image: 'windows-server-2022-gui:current'
-    resource_class: windows.xlarge # can be medium, large, xlarge, 2xlarge
+      image: windows-server-2022-gui:current
+    resource_class: windows.xlarge
     environment:
       FLAKY_TESTS: keep_retrying
     steps:
@@ -110,7 +110,7 @@ jobs:
       image: ubuntu-2404:2024.05.1
     resource_class: 2xlarge+
     environment:
-      NODE_VERSION: 'lts/*'
+      NODE_VERSION: lts/*
     steps:
       - checkout
       - run:
@@ -129,13 +129,13 @@ jobs:
             sudo apt-get update && sudo apt-get install ninja-build -y
             ./configure --enable-lto --ninja
             ninja -C out/Release
-  
+
   docs:
     machine:
       image: ubuntu-2404:2024.05.1
     resource_class: 2xlarge
     environment:
-      NODE_VERSION: 'lts/*'
+      NODE_VERSION: lts/*
     steps:
       - checkout
       - run:
@@ -164,7 +164,7 @@ jobs:
     machine:
       image: ubuntu-2404:2024.05.1
     environment:
-      NODE_VERSION: 'lts/*'
+      NODE_VERSION: lts/*
     steps:
       - checkout
       - run:
@@ -205,7 +205,7 @@ jobs:
     machine:
       image: ubuntu-2404:2024.05.1
     environment:
-      NODE_VERSION: 'lts/*'
+      NODE_VERSION: lts/*
       PYTHON_VERSION: '3.12'
     steps:
       - checkout:
@@ -246,7 +246,7 @@ jobs:
     machine:
       image: ubuntu-2404:2024.05.1
     environment:
-      NODE_VERSION: 'lts/*'
+      NODE_VERSION: lts/*
     steps:
       - checkout
       - run:
@@ -340,8 +340,6 @@ jobs:
           name: Lint README
           command: tools/lint-readme-lists.mjs
 
-
-# test linux
   test-linux:
     docker:
       - image: cimg/python:3.12.5
@@ -360,12 +358,12 @@ jobs:
             python3 --version  # Confirm Python version
       - run:
           name: install cargo
-          command: | 
+          command: |
             sudo apt install cargo
             sudo apt update
             sudo apt install clang
             sudo apt-get install pkg-config libssl-dev
-      - run: 
+      - run:
           name: clang version
           command: |
             clang --version
@@ -389,7 +387,7 @@ jobs:
 
   test-macOS:
     macos:
-      xcode: "14.2.0"  # macOS version that supports Xcode 14, corresponding to macOS-14
+      xcode: 14.2.0  # macOS version that supports Xcode 14, corresponding to macOS-14
     environment:
       PYTHON_VERSION: '3.12'
       FLAKY_TESTS: keep_retrying
@@ -402,8 +400,7 @@ jobs:
           name: Set up Python $PYTHON_VERSION
           command: |
             brew install pyenv
-            pyenv install $PYTHON_VERSION
-            pyenv global $PYTHON_VERSION
+            brew install python
             python -m ensurepip
             python -m pip install --upgrade pip setuptools wheel
       - run:
@@ -425,43 +422,36 @@ jobs:
       - run:
           name: Test
           command: make run-ci -j$(sysctl -n hw.ncpu) V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
+
 workflows:
 
-  # build-tarball:
-  #   jobs:
-  #     - build_tarball
-  #     - test_tarball_linux:
-  #         requires:
-  #           - build_tarball
-
-  # build-windows:
-  #   jobs:
-  #     - build-windows
-
-  # daily:
-  #   jobs:
-  #     - daily
-  
-  # docs:
-  #   jobs:
-  #     - docs
-
-  # linters:
-  #   jobs:
-  #     - lint-addon-docs
-  #     - lint-cpp
-  #     - format-cpp
-  #     - lint-js-and-md
-  #     - lint-py
-  #     - lint-yaml
-  #     - lint-sh
-  #     - lint-pr-url
-  #     - lint-readme
-  
-  test-linux:
+  build-tarball:
     jobs:
-      - test-linux
-  
-  test-macos:
+      - build_tarball
+      - test_tarball_linux:
+          requires:
+            - build_tarball
+
+  build-windows:
     jobs:
-      - test-macOS
+      - build-windows
+
+  daily:
+    jobs:
+      - daily
+
+  docs:
+    jobs:
+      - docs
+
+  linters:
+    jobs:
+      - lint-addon-docs
+      - lint-cpp
+      - format-cpp
+      - lint-js-and-md
+      - lint-py
+      - lint-yaml
+      - lint-sh
+      - lint-pr-url
+      - lint-readme
